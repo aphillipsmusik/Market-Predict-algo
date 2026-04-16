@@ -7,3 +7,5 @@ streamlit>=1.30.0
 plotly>=5.18.0
 joblib>=1.3.0
 ta>=0.11.0
+# Deep learning — LSTM sequence model. CPU-only build works fine.
+torch>=2.0.0

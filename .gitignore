@@ -12,6 +12,12 @@ env/
 data/*.parquet
 models/*.joblib
 models/*.json
+models/*.pt
+
+# PyInstaller build artifacts
+build/
+dist/
+*.zip
 
 # OS / editor
 .DS_Store
