@@ -1,0 +1,56 @@
+name: Build Windows .exe
+
+# Manual trigger + on-tag. Each tagged release produces a downloadable zip
+# of the dist/ folder and attaches it to the GitHub Release.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # CPU-only torch keeps the bundle ~1.5 GB smaller than the CUDA wheels.
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Pre-train models (best-effort, needs network)
+        continue-on-error: true
+        run: python -m scripts.train --no-lstm --no-backtest
+
+      - name: Build executable
+        run: python launcher/build.py
+
+      - name: Package as zip
+        shell: pwsh
+        run: |
+          $out = "SPYPredictor-windows-x64.zip"
+          Compress-Archive -Path "dist/SPYPredictor/*" -DestinationPath $out
+          Get-Item $out | Format-List
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SPYPredictor-windows
+          path: SPYPredictor-windows-x64.zip
+          retention-days: 14
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SPYPredictor-windows-x64.zip

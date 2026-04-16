@@ -150,6 +150,80 @@ All features are built from **prior-day or earlier** data — no look-ahead.
 
 ---
 
+## Building a Windows .exe
+
+The dashboard can be packaged as a self-contained Windows desktop app. The
+launcher starts a local Streamlit server in-process and opens the user's
+default browser to it, so end users don't need Python installed.
+
+### Option 1 — one-click local build
+
+On a Windows machine, from a clean clone:
+
+```bat
+build.bat
+```
+
+This creates a venv, installs deps, pre-trains the models, and produces:
+
+```
+dist\SPYPredictor\SPYPredictor.exe
+```
+
+Ship the entire `dist\SPYPredictor\` folder (not just the .exe — it needs the
+DLLs and bundled Streamlit assets next to it). Zip it, or wrap it with a
+proper installer like Inno Setup.
+
+### Option 2 — cross-platform build script
+
+```bash
+pip install -r requirements.txt pyinstaller
+python -m scripts.train            # pre-train so the .exe ships with weights
+python launcher/build.py
+```
+
+Works on macOS and Linux too — each platform produces its own native
+executable using the same `launcher/app.spec`.
+
+### Option 3 — automated CI builds
+
+A GitHub Actions workflow (`.github/workflows/build-windows.yml`) builds
+`SPYPredictor-windows-x64.zip` on every tagged release (`v*`) or on manual
+dispatch from the Actions tab. It runs on `windows-latest` with Python 3.11,
+installs the CPU-only PyTorch wheel (keeps the bundle ~1.5 GB smaller), and
+attaches the artifact to the GitHub Release automatically.
+
+To cut a release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+### How it works
+
+- **`launcher/run_app.py`** — picks a free port, starts Streamlit via
+  `streamlit.web.bootstrap.run` in-process (not as a subprocess — that's
+  the #1 PyInstaller footgun), and opens the browser.
+- **`launcher/app.spec`** — tells PyInstaller to bundle Streamlit's static
+  assets, Plotly/Altair data files, XGBoost DLLs, and the trickier
+  dynamically-imported submodules. Also preserves `importlib.metadata`
+  package info that Streamlit reads at boot.
+- **One-folder build** (not one-file) for faster startup and fewer
+  false-positive AV flags.
+
+### Known gotchas
+
+- **First launch is ~3-5 seconds** as PyInstaller unpacks dependencies.
+- **Windows Defender / SmartScreen** may flag unsigned builds. Code-sign
+  with a certificate (or add a SmartScreen reputation via downloads) for a
+  clean user experience.
+- **Bundle size is ~800 MB–1.5 GB** depending on whether you include
+  PyTorch. Use the `--no-lstm` training flag to skip torch entirely if you
+  want a smaller ~300 MB build.
+- The `launcher/icon.ico` file is optional — drop one in and it'll be used
+  automatically by the .spec.
+
 ## Caveats (read these)
 
 - Markets are **non-stationary**. A model trained through 2019 knew nothing
